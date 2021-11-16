@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,11 +18,23 @@ func (s *StubTransfererStore) GetAccounts() []Account {
 	return s.accountList
 }
 
-func (s *StubTransfererStore) PostAccount(a Account) {}
+func (s *StubTransfererStore) PostAccount(a Account) {
+	s.accountList = append(s.accountList, a)
+}
+
+func (s *StubTransfererStore) GetAccountBalance(id string) string {
+	for _, account := range s.GetAccounts() {
+		if account.Id == id {
+			return account.Balance
+		}
+	}
+
+	return ""
+}
 
 func TestGETAccounts(t *testing.T) {
 
-	t.Run("it returns the accounts as JSON", func(t *testing.T) {
+	t.Run("return the accounts as JSON", func(t *testing.T) {
 		wantedAccounts := []Account{
 			{"xyz", "John", "10.00"},
 			{"abc", "Mary", "20.00"},
@@ -53,7 +66,7 @@ func TestGETAccounts(t *testing.T) {
 
 func TestPOSTAccounts(t *testing.T) {
 
-	t.Run("it returns a 201 response", func(t *testing.T) {
+	t.Run("return a 201 response", func(t *testing.T) {
 		store := new(StubTransfererStore)
 		server := TransfererServer{store}
 
@@ -75,6 +88,55 @@ func TestPOSTAccounts(t *testing.T) {
 
 		if got != wantedAccount {
 			t.Errorf("got %q want %q", got, wantedAccount)
+		}
+	})
+}
+
+func TestGETAccountBalance(t *testing.T) {
+	t.Run("get 404 requesting a non existent account balance", func(t *testing.T) {
+		store := new(StubTransfererStore)
+		server := TransfererServer{store}
+
+		accountId := "abc"
+
+		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/accounts/%s/balance", accountId), nil)
+		response := httptest.NewRecorder()
+
+		server.ServeHTTP(response, request)
+
+		assertStatus(t, response.Code, http.StatusNotFound)
+	})
+
+	t.Run("return balance from an existent account", func(t *testing.T) {
+		existentAccounts := []Account{
+			{"xyz", "John", "10.00"},
+			{"abc", "Mary", "20.00"},
+		}
+
+		accountId := "abc"
+
+		store := new(StubTransfererStore)
+		store.accountList = existentAccounts
+
+		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/accounts/%s/balance", accountId), nil)
+		response := httptest.NewRecorder()
+
+		server := TransfererServer{store}
+
+		server.ServeHTTP(response, request)
+
+		var got AccountBalance
+		err := json.NewDecoder(response.Body).Decode(&got)
+		if err != nil {
+			t.Fatalf("Unable to parse response %q into slice of Accounts, '%v'", response.Body, err)
+		}
+		assertStatus(t, response.Code, http.StatusOK)
+		asserContentType(t, response, jsonContentType)
+
+		want := AccountBalance{"20.00"}
+
+		if got != want {
+			t.Errorf("got %q want %q", got, want)
 		}
 	})
 }

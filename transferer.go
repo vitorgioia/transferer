@@ -16,9 +16,14 @@ type Account struct {
 	Balance string `json:"balance"`
 }
 
+type AccountBalance struct {
+	Balance string `json:"balance"`
+}
+
 type TransfererStore interface {
 	GetAccounts() []Account
 	PostAccount(a Account)
+	GetAccountBalance(id string) string
 }
 
 type TransfererServer struct {
@@ -41,6 +46,19 @@ func (t *TransfererServer) AccountsHandler(w http.ResponseWriter, r *http.Reques
 	case http.MethodPost:
 		t.createAccount(w, r)
 	}
+}
+
+func (t *TransfererServer) BalanceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	accountId := vars["account_id"]
+	amount := t.store.GetAccountBalance(accountId)
+
+	if amount == "" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(AccountBalance{amount})
 }
 
 func (t *TransfererServer) fetchAccountList(w http.ResponseWriter) {
