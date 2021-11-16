@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 const jsonContentType = "application/json"
@@ -26,6 +28,13 @@ type TransfererServer struct {
 func (t *TransfererServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", jsonContentType)
 
+	router := mux.NewRouter()
+	router.HandleFunc("/accounts", t.AccountsHandler).Methods("GET", "POST")
+	router.HandleFunc("/accounts/{account_id}/balance", t.BalanceHandler).Methods("GET")
+	router.ServeHTTP(w, r)
+}
+
+func (t *TransfererServer) AccountsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		t.fetchAccountList(w)
